@@ -1,4 +1,4 @@
-ï»¿const { Client, LocalAuth } = require('@juzi/whatsapp-web.js');
+const { Client, LocalAuth } = require('@juzi/whatsapp-web.js');
 const qrcode = require('qrcode');
 const express = require('express');
 const cors = require('cors');
@@ -13,9 +13,9 @@ let botStatus = 'DISCONNECTED';
 let currentQrCodeUrl = '';
 
 let textos = {
-    welcome: 'ğŸ‘‹ OlÃ¡! Sou o assistente de TI.\nPara abrir um chamado, por favor escolha a opÃ§Ã£o do *NOME DO LOCAL*.',
-    location: 'âœ… Certo, local anotado.\n\nAgora me *escreva detalhadamente o problema* que estÃ¡ ocorrendo:',
-    success: 'ğŸš€ *Chamado Aberto com Sucesso!*\nNossa equipe de TI jÃ¡ foi notificada e resolverÃ¡ em breve.',
+    welcome: '?? Olá! Sou o assistente de TI.\nPara abrir um chamado, por favor escolha a opção do *NOME DO LOCAL*.',
+    location: '? Certo, local anotado.\n\nAgora me *escreva detalhadamente o problema* que está ocorrendo:',
+    success: '?? *Chamado Aberto com Sucesso!*\nNossa equipe de TI já foi notificada e resolverá em breve.',
     locations: [] 
 };
 
@@ -27,7 +27,7 @@ async function fetchFromAPI(endpoint, options = {}) {
             const res = await fetch('http://localhost:' + port + endpoint, options);
             if (res.ok) {
                 const contentType = res.headers.get('content-type');
-                // IMPORTANTE: SÃ³ aceita se for JSON. Se for HTML, ignora e tenta a prÃ³xima porta!
+                // IMPORTANTE: Só aceita se for JSON. Se for HTML, ignora e tenta a próxima porta!
                 if (contentType && contentType.includes('application/json')) {
                     API_URL = 'http://localhost:' + port;
                     return res;
@@ -49,7 +49,7 @@ async function atualizarTextos() {
         if (data.locations) textos.locations = data.locations;
         console.log('Configs e Locais atualizados com sucesso via ' + API_URL);
     } catch (e) {
-        console.log('Painel offline ou URL incorreta. Usando dados em cache/padrÃ£o.');
+        console.log('Painel offline ou URL incorreta. Usando dados em cache/padrão.');
     }
 }
 
@@ -59,7 +59,7 @@ atualizarTextos();
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
-        executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        
         args: ['--no-sandbox', '--disable-setuid-sandbox']
     }
 });
@@ -89,7 +89,7 @@ const getChildren = (parentId) => textos.locations.filter(l => l.parentId === pa
 
 async function enviarChamado(dados, numeroUser, msg) {
     if (!dados.base64Image) {
-        await client.sendMessage(numeroUser, 'â³ Aguarde um instante, estou registrando seu chamado no sistema...');
+        await client.sendMessage(numeroUser, '? Aguarde um instante, estou registrando seu chamado no sistema...');
     }
     try {
         const contact = await msg.getContact();
@@ -114,7 +114,7 @@ async function enviarChamado(dados, numeroUser, msg) {
         
         // Encaminhar para os administradores
         if (json.alertNumbers && json.alertNumbers.length > 0) {
-            const msgAdmin = `ğŸš¨ *Novo Chamado #${json.ticketNumber || json.ticketId}*\n\n*De:* ${nomeReal} (${telefoneReal})\n*Local:* ${dados.locationName}\n*Problema:* ${dados.problema}`;
+            const msgAdmin = `?? *Novo Chamado #${json.ticketNumber || json.ticketId}*\n\n*De:* ${nomeReal} (${telefoneReal})\n*Local:* ${dados.locationName}\n*Problema:* ${dados.problema}`;
             for (const num of json.alertNumbers) {
                 try {
                     let cleanNum = num.replace(/\D/g, ''); 
@@ -138,7 +138,7 @@ async function enviarChamado(dados, numeroUser, msg) {
         
     } catch (erro) {
         console.error('Erro em enviarChamado:', erro);
-        await client.sendMessage(numeroUser, 'âŒ Servidor da TI parece estar offline.');
+        await client.sendMessage(numeroUser, '? Servidor da TI parece estar offline.');
     }
     delete conversas[numeroUser];
 }
@@ -150,7 +150,7 @@ client.on('message', async (msg) => {
     if (texto === 'sair' || texto === 'cancelar' || texto === 'encerrar') {
         if (conversas[numeroUser]) {
             delete conversas[numeroUser];
-            await client.sendMessage(numeroUser, 'ğŸ›‘ Atendimento encerrado. Se precisar de algo, Ã© sÃ³ mandar uma mensagem novamente.');
+            await client.sendMessage(numeroUser, '?? Atendimento encerrado. Se precisar de algo, é só mandar uma mensagem novamente.');
         }
         return;
     }
@@ -163,14 +163,14 @@ client.on('message', async (msg) => {
         
         const rootLocations = getChildren(null);
         
-        let menu = textos.welcome + '\n\n*Digite o NÃšMERO do local abaixo:*\n\n';
+        let menu = textos.welcome + '\n\n*Digite o NÚMERO do local abaixo:*\n\n';
         if (rootLocations.length > 0) {
             rootLocations.forEach((loc, index) => {
                 menu += (index + 1) + ' - ' + loc.name + '\n';
             });
             conversas[numeroUser].dados.menuOptions = rootLocations;
         } else {
-            menu += 'âš ï¸ O sistema nÃ£o conseguiu carregar a lista de locais do servidor. Tente novamente mais tarde ou contate o TI.';
+            menu += '?? O sistema não conseguiu carregar a lista de locais do servidor. Tente novamente mais tarde ou contate o TI.';
         }
         
         menu += '\n*(Ou digite "Sair" para cancelar)*';
@@ -181,7 +181,7 @@ client.on('message', async (msg) => {
     const estado = conversas[numeroUser];
 
     if (estado.passo < 4 && msg.type !== 'chat') {
-        await client.sendMessage(numeroUser, 'âŒ *Por favor, digite sua resposta em texto.*\nNÃ£o consigo entender Ã¡udios, vÃ­deos ou imagens nesta etapa.');
+        await client.sendMessage(numeroUser, '? *Por favor, digite sua resposta em texto.*\nNão consigo entender áudios, vídeos ou imagens nesta etapa.');
         return;
     }
 
@@ -197,7 +197,7 @@ client.on('message', async (msg) => {
         }
         
         if (isNaN(indexEscolhido) || indexEscolhido < 0 || !opcoesAtuais[indexEscolhido]) {
-            await client.sendMessage(numeroUser, 'âŒ OpÃ§Ã£o invÃ¡lida.\nPor favor, digite apenas o *NÃšMERO* correspondente ao local, ou "Sair" para cancelar.');
+            await client.sendMessage(numeroUser, '? Opção inválida.\nPor favor, digite apenas o *NÚMERO* correspondente ao local, ou "Sair" para cancelar.');
             return;
         }
 
@@ -210,8 +210,8 @@ client.on('message', async (msg) => {
             estado.dados.locationId = localSelecionado.id;
             estado.dados.menuOptions = filhos;
             
-            let submenu = 'âœ… *' + localSelecionado.name + '*\n\n';
-            submenu += 'O problema Ã© no local inteiro ou em um sub-local especÃ­fico?\n\n';
+            let submenu = '? *' + localSelecionado.name + '*\n\n';
+            submenu += 'O problema é no local inteiro ou em um sub-local específico?\n\n';
             submenu += '0 - Geral (O local inteiro)\n';
             
             filhos.forEach((filho, i) => {
@@ -233,7 +233,7 @@ client.on('message', async (msg) => {
     if (estado.passo === 2) {
         estado.dados.problema = msg.body;
         estado.passo = 3;
-        await client.sendMessage(numeroUser, 'ğŸ“¸ Deseja anexar uma foto do problema?\n\n1 - Sim\n2 - NÃ£o\n\n*(Ou digite "Sair" para cancelar)*');
+        await client.sendMessage(numeroUser, '?? Deseja anexar uma foto do problema?\n\n1 - Sim\n2 - Não\n\n*(Ou digite "Sair" para cancelar)*');
         return;
     }
 
@@ -246,7 +246,7 @@ client.on('message', async (msg) => {
             await client.sendMessage(numeroUser, 'Envie a foto agora! (Estou aguardando...)');
             return;
         } else {
-            await client.sendMessage(numeroUser, 'âŒ OpÃ§Ã£o invÃ¡lida. Digite 1 para Sim ou 2 para NÃ£o.');
+            await client.sendMessage(numeroUser, '? Opção inválida. Digite 1 para Sim ou 2 para Não.');
             return;
         }
     }
