@@ -7,7 +7,16 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-let API_URL = process.env.API_URL || 'http://localhost:3000'; 
+const configuredApiUrl = process.env.API_URL ? process.env.API_URL.replace(/\/$/, '') : '';
+let API_URL = configuredApiUrl || 'http://localhost:3000';
+const WEBHOOK_SECRET = process.env.WHATSAPP_WEBHOOK_SECRET || '';
+const BOT_API_SECRET = process.env.WHATSAPP_BOT_API_SECRET || '';
+const BOT_HOST = process.env.BOT_HOST || '127.0.0.1';
+const BOT_PORT = parseInt(process.env.BOT_PORT || process.env.PORT || '3001', 10);
+
+if (!WEBHOOK_SECRET) {
+    console.warn('WHATSAPP_WEBHOOK_SECRET nao configurado. O painel deve rejeitar chamadas do bot.');
+}
 
 let botStatus = 'DISCONNECTED';
 let currentQrCodeUrl = '';
@@ -20,23 +29,29 @@ let textos = {
 };
 
 async function fetchFromAPI(endpoint, options = {}) {
-    const portsToTry = [3000, 3002, 3003, 3004, 3005];
+    const urlsToTry = configuredApiUrl
+        ? [configuredApiUrl]
+        : [3000, 3002, 3003, 3004, 3005].map(port => 'http://localhost:' + port);
     
-    for (let port of portsToTry) {
+    for (let baseUrl of urlsToTry) {
         try {
-            const res = await fetch('http://localhost:' + port + endpoint, options);
+            const headers = {
+                ...(options.headers || {}),
+                ...(WEBHOOK_SECRET ? { 'x-webhook-secret': WEBHOOK_SECRET } : {})
+            };
+            const res = await fetch(baseUrl + endpoint, { ...options, headers });
             if (res.ok) {
                 const contentType = res.headers.get('content-type');
-                // IMPORTANTE: Só aceita se for JSON. Se for HTML, ignora e tenta a próxima porta!
+                // IMPORTANTE: So aceita se for JSON. Se for HTML, ignora e tenta a proxima URL!
                 if (contentType && contentType.includes('application/json')) {
-                    API_URL = 'http://localhost:' + port;
+                    API_URL = baseUrl;
                     return res;
                 }
             }
         } catch(e) {}
     }
     
-    throw new Error("Painel Offline em todas as portas testadas");
+    throw new Error("Painel Offline em todas as URLs testadas");
 }
 
 async function atualizarTextos() {
@@ -86,6 +101,16 @@ client.on('disconnected', () => {
 const conversas = {};
 
 const getChildren = (parentId) => textos.locations.filter(l => l.parentId === parentId);
+
+function requireBotApiSecret(req, res, next) {
+    if (!BOT_API_SECRET) return next();
+
+    if (req.get('x-bot-api-secret') !== BOT_API_SECRET) {
+        return res.status(401).json({ error: 'Nao autorizado' });
+    }
+
+    next();
+}
 
 async function enviarChamado(dados, numeroUser, msg) {
     if (!dados.base64Image) {
@@ -296,8 +321,8 @@ client.on('message', async (msg) => {
 
 client.initialize();
 
-app.get('/status', (req, res) => res.json({ status: botStatus, qrCode: currentQrCodeUrl }));
-app.post('/logout', async (req, res) => {
+app.get('/status', requireBotApiSecret, (req, res) => res.json({ status: botStatus, qrCode: currentQrCodeUrl }));
+app.post('/logout', requireBotApiSecret, async (req, res) => {
     try {
         await client.logout();
         botStatus = 'DISCONNECTED';
@@ -308,4 +333,4 @@ app.post('/logout', async (req, res) => {
         res.status(500).json({ error: e.message });
     }
 });
-app.listen(3001, () => console.log('Mini-API rodando na porta 3001'));
+app.listen(BOT_PORT, BOT_HOST, () => console.log('Mini-API rodando em http://' + BOT_HOST + ':' + BOT_PORT));
